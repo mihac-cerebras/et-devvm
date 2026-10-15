@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Eternal Terminal health probe every minute — installed by et-devvm
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

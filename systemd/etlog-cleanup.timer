@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily Eternal Terminal log cleanup — installed by et-devvm
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

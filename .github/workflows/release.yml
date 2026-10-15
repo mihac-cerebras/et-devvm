@@ -1,0 +1,130 @@
+# Build Eternal Terminal from upstream master (or a given ref) on Rocky Linux 9
+# and publish the binaries as a GitHub release that `install.sh --prebuilt`
+# downloads. Runs monthly; skips if upstream hasn't moved since the last release.
+name: Build ET release
+
+on:
+  schedule:
+    - cron: "23 6 1 * *" # 06:23 UTC on the 1st of every month
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Upstream EternalTerminal ref (branch, tag or sha)"
+        default: master
+      force:
+        description: "Rebuild even if a release for this commit exists"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.r.outputs.sha }}
+      short: ${{ steps.r.outputs.short }}
+      skip: ${{ steps.r.outputs.skip }}
+    steps:
+      - id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ inputs.ref || 'master' }}
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          set -euo pipefail
+          git init -q et && cd et
+          git fetch -q --depth=1 https://github.com/MisterTea/EternalTerminal "$REF"
+          sha=$(git rev-parse FETCH_HEAD)
+          short=${sha:0:7}
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          if [ "$FORCE" != true ] && gh release list -R "$GITHUB_REPOSITORY" --limit 100 --json tagName -q '.[].tagName' | grep -q -- "-$short\$"; then
+            echo "Release for upstream $short already exists; nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    container: rockylinux:9
+    timeout-minutes: 150
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: /github/home/vcpkg-cache
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf -y install epel-release dnf-plugins-core
+          dnf config-manager --set-enabled crb
+          # Deliberately NOT libutempter-devel: the binaries must only need
+          # libraries every dev VM already has.
+          dnf -y install git gcc gcc-c++ make cmake perl perl-IPC-Cmd perl-FindBin \
+            autoconf autoconf-archive automake libtool pkgconf-pkg-config \
+            zip unzip tar curl patch kernel-headers libunwind-devel libselinux-devel \
+            binutils which
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+
+      - uses: actions/checkout@v4
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: /github/home/vcpkg-cache
+          key: vcpkg-el9-${{ needs.resolve.outputs.sha }}
+          restore-keys: vcpkg-el9-
+
+      - name: Build and test
+        run: ci/build.sh "${{ needs.resolve.outputs.sha }}" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: et-el9-x86_64
+          path: |
+            dist/et-el9-x86_64.tar.gz
+            dist/et-el9-x86_64.tar.gz.sha256
+            dist/et-el9-x86_64/VERSION
+            dist/et-el9-x86_64/NEEDED
+
+  release:
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: et-el9-x86_64
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHORT: ${{ needs.resolve.outputs.short }}
+        run: |
+          set -euo pipefail
+          version=$(head -1 et-el9-x86_64/VERSION | awk '{print $NF}')
+          tag="et-${version}-${SHORT}"
+          if gh release view -R "$GITHUB_REPOSITORY" "$tag" >/dev/null 2>&1; then
+            gh release delete -R "$GITHUB_REPOSITORY" "$tag" --yes --cleanup-tag
+          fi
+          {
+            echo "Eternal Terminal built from upstream for EL9 (Rocky/RHEL 9) x86_64."
+            echo
+            echo '```'
+            cat et-el9-x86_64/VERSION
+            echo '```'
+            echo
+            echo "Runtime libraries needed on the target:"
+            echo '```'
+            cat et-el9-x86_64/NEEDED
+            echo '```'
+            echo
+            echo 'Install on a dev VM: `./install.sh --prebuilt` (see README).'
+          } > notes.md
+          gh release create -R "$GITHUB_REPOSITORY" "$tag" \
+            et-el9-x86_64.tar.gz et-el9-x86_64.tar.gz.sha256 \
+            --title "ET $version (upstream $SHORT)" --notes-file notes.md --latest

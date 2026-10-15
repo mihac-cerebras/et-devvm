@@ -1,0 +1,8 @@
+[Unit]
+Description=Prune old Eternal Terminal logs — installed by et-devvm
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/bin/find %h/.local/et/log -type f -name '*.log' -mtime +14 -delete
+ExecStart=-/usr/bin/find %h/.local/et/log -type f -name 'etserver-stderr-*' -empty -delete
+ExecStart=/bin/sh -c "find /tmp -maxdepth 1 -user %U -name 'et*' -mtime +7 -delete 2>/dev/null; true"

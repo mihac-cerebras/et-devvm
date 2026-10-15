@@ -1,0 +1,10 @@
+[Unit]
+Description=Eternal Terminal health probe (detect wedge, restart etserver) — installed by et-devvm
+# Don't probe while etserver itself is mid-restart.
+After=etserver.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/et-healthcheck.sh
+# Probe can take up to ~15s (twice, with confirmation); give headroom.
+TimeoutStartSec=60
