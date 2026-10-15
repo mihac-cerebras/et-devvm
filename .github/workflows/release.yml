@@ -59,6 +59,14 @@ jobs:
     timeout-minutes: 150
     env:
       VCPKG_DEFAULT_BINARY_CACHE: /github/home/vcpkg-cache
+      # ccache for ET's own sources (vcpkg deps are covered by the binary cache).
+      CCACHE_DIR: /github/home/ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      # ET uses precompiled headers; without this sloppiness ccache misses them.
+      CCACHE_SLOPPINESS: pch_defines,time_macros,include_file_mtime,include_file_ctime
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     steps:
       - name: Install build dependencies
         run: |
@@ -69,8 +77,8 @@ jobs:
           dnf -y install --allowerasing git gcc gcc-c++ make cmake perl perl-IPC-Cmd perl-FindBin \
             autoconf autoconf-archive automake libtool pkgconf-pkg-config \
             zip unzip tar curl patch kernel-headers libunwind-devel libselinux-devel \
-            libatomic binutils which
-          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+            libatomic binutils which ccache
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE" "$CCACHE_DIR"
 
       - uses: actions/checkout@v4
 
@@ -82,8 +90,25 @@ jobs:
           key: vcpkg-el9-${{ needs.resolve.outputs.sha }}
           restore-keys: vcpkg-el9-
 
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: /github/home/ccache
+          key: ccache-el9-${{ github.run_id }}
+          restore-keys: ccache-el9-
+
       - name: Build and test
-        run: ci/build.sh "${{ needs.resolve.outputs.sha }}" dist
+        run: |
+          ccache -z
+          ci/build.sh "${{ needs.resolve.outputs.sha }}" dist
+          ccache -s
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: /github/home/ccache
+          key: ccache-el9-${{ github.run_id }}
 
       # Save even if the ET build/tests failed: the vcpkg deps (~20 min) are
       # usually fine, and the next attempt can reuse them.

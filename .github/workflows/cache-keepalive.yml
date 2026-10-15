@@ -1,0 +1,29 @@
+# GitHub evicts caches not accessed for 7 days, which would make every monthly
+# release build start cold (~20 min of vcpkg deps + a full ET compile).
+# Restoring the caches weekly keeps them alive. Must use the same container and
+# paths as release.yml, or the cache version won't match.
+name: Keep build caches warm
+
+on:
+  schedule:
+    - cron: "41 5 * * 3" # Wednesdays 05:41 UTC
+  workflow_dispatch:
+
+jobs:
+  touch:
+    runs-on: ubuntu-latest
+    container: rockylinux:9
+    steps:
+      - name: Touch vcpkg binary cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /github/home/vcpkg-cache
+          key: vcpkg-el9-keepalive
+          restore-keys: vcpkg-el9-
+      - name: Touch ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: /github/home/ccache
+          key: ccache-el9-keepalive
+          restore-keys: ccache-el9-
+      - run: du -sh /github/home/vcpkg-cache /github/home/ccache 2>/dev/null || true
