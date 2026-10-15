@@ -4,8 +4,8 @@
 # watchdog, and daily log cleanup. Safe to re-run (it upgrades in place).
 #
 # Run ON THE VM, from a clone of this repo:
-#   ./install.sh                     # build ET from upstream source (~30-45 min)
-#   ./install.sh --prebuilt          # use the latest prebuilt release (~1 min)
+#   ./install.sh                     # latest prebuilt release (~1 min)
+#   ./install.sh --from-source       # build ET from upstream source (~30-45 min)
 #
 # See ./install.sh --help and README.md.
 set -euo pipefail
@@ -16,7 +16,7 @@ RELEASE_REPO="${ET_RELEASE_REPO:-mihac-cerebras/et-devvm}"
 ET_PORT="${ET_PORT:-2022}"
 ET_REF="${ET_REF:-master}"
 ET_SRC="${ET_SRC:-$HOME/src/EternalTerminal}"
-MODE=source
+MODE=prebuilt
 PREBUILT_SRC=latest
 RUN_TESTS=1
 FORCE_RESTART=0
@@ -40,11 +40,11 @@ usage() {
     cat <<EOF
 Usage: $0 [options]
 
-  --prebuilt [URL|FILE]  Install a prebuilt tarball instead of building. With no
-                         argument, downloads the latest release of
-                         $RELEASE_REPO (built by GitHub Actions from upstream ET).
-  --from-source          Build from upstream source (default).
-  --ref REF              Upstream git ref to build (default: $ET_REF).
+  --prebuilt [URL|FILE]  Install a prebuilt tarball (default). With no argument,
+                         downloads the latest release of $RELEASE_REPO
+                         (built monthly by GitHub Actions from upstream ET).
+  --from-source          Build from upstream source instead.
+  --ref REF              Upstream git ref to build (implies --from-source; default: $ET_REF).
   --src DIR              Where to clone/build ET (default: $ET_SRC).
   --port N               TCP port for etserver (default: $ET_PORT).
   --skip-tests           Don't run et-test after a source build.
@@ -64,7 +64,7 @@ while [ $# -gt 0 ]; do
             MODE=prebuilt
             if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then PREBUILT_SRC="$2"; shift; fi ;;
         --from-source) MODE=source ;;
-        --ref) ET_REF="$2"; shift ;;
+        --ref) ET_REF="$2"; MODE=source; shift ;;
         --src) ET_SRC="$2"; shift ;;
         --port) ET_PORT="$2"; shift ;;
         --skip-tests) RUN_TESTS=0 ;;
@@ -126,7 +126,7 @@ preflight() {
         printf '#include <libunwind.h>\n' | gcc -E -x c - >/dev/null 2>&1 || missing+=("libunwind-devel (EPEL)")
     fi
     [ ${#missing[@]} -eq 0 ] || die "missing tools/packages: ${missing[*]}
-       ask an admin to 'dnf install' them, or use --prebuilt"
+       ask an admin to 'dnf install' them, or drop --from-source to use prebuilt binaries"
 
     # Port must be free, or held by our own etserver (upgrade case).
     local pids pid

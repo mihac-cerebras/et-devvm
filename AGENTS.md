@@ -22,12 +22,12 @@ It kills your own session. Hand that command to the user.
 ```bash
 git clone https://github.com/mihac-cerebras/et-devvm ~/src/et-devvm 2>/dev/null \
   || git -C ~/src/et-devvm pull --ff-only
-cd ~/src/et-devvm && ./install.sh --prebuilt
+cd ~/src/et-devvm && ./install.sh
 ```
 
 - If `ssh localhost` fails, the installer warns about it. Ask the user before re-running with
   `--setup-localhost-ssh`, because it edits `~/.ssh/authorized_keys`.
-- If the prebuilt binaries can't run (missing libs), fall back to `./install.sh`
+- If the prebuilt binaries can't run (missing libs), fall back to `./install.sh --from-source`
   (source build, 30-45 min). Run it in the background or under
   `systemd-run --user --unit=et-build ...` so a dropped connection doesn't kill it.
 - If something already listens on 2022, use `--port <other>` and use the same

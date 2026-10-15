@@ -24,9 +24,9 @@ On the **VM**:
 ```bash
 git clone https://github.com/mihac-cerebras/et-devvm ~/src/et-devvm
 cd ~/src/et-devvm
-./install.sh --prebuilt          # ~1 min: latest release built by GitHub Actions
+./install.sh                     # ~1 min: latest release built by GitHub Actions
 # or
-./install.sh                     # ~30-45 min: build upstream master from source
+./install.sh --from-source       # ~30-45 min: build upstream master from source
 ```
 
 The script is idempotent. Re-run it to upgrade. Useful flags: `--port N`, `--ref <upstream ref>`,
@@ -92,7 +92,7 @@ Exit `1` is a fast, transient failure and is ignored on purpose.
 2. builds it in a `rockylinux:9` container with `ci/build.sh` (Sentry disabled,
    no libutempter, so the binaries need only libs every VM has), and runs `et-test`;
 3. publishes `et-el9-x86_64.tar.gz` + `.sha256` as release `et-<version>-<sha>`,
-   marked latest, which is what `install.sh --prebuilt` downloads.
+   marked latest, which is what `install.sh` downloads by default.
 
 ## Uninstall
 
