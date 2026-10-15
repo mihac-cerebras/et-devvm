@@ -77,7 +77,8 @@ jobs:
           dnf -y install --allowerasing git gcc gcc-c++ make cmake perl perl-IPC-Cmd perl-FindBin \
             autoconf autoconf-archive automake libtool pkgconf-pkg-config \
             zip unzip tar curl patch kernel-headers libunwind-devel libselinux-devel \
-            libatomic binutils which ccache
+            libatomic binutils which ccache \
+            procps-ng openssh-clients  # et-test shells out to pgrep/ps/pkill and ssh -G
           mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE" "$CCACHE_DIR"
 
       - uses: actions/checkout@v4
