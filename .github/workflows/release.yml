@@ -69,13 +69,14 @@ jobs:
           dnf -y install --allowerasing git gcc gcc-c++ make cmake perl perl-IPC-Cmd perl-FindBin \
             autoconf autoconf-archive automake libtool pkgconf-pkg-config \
             zip unzip tar curl patch kernel-headers libunwind-devel libselinux-devel \
-            binutils which
+            libatomic binutils which
           mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
 
       - uses: actions/checkout@v4
 
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v4
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: /github/home/vcpkg-cache
           key: vcpkg-el9-${{ needs.resolve.outputs.sha }}
@@ -83,6 +84,15 @@ jobs:
 
       - name: Build and test
         run: ci/build.sh "${{ needs.resolve.outputs.sha }}" dist
+
+      # Save even if the ET build/tests failed: the vcpkg deps (~20 min) are
+      # usually fine, and the next attempt can reuse them.
+      - name: Save vcpkg binary cache
+        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /github/home/vcpkg-cache
+          key: vcpkg-el9-${{ needs.resolve.outputs.sha }}
 
       - uses: actions/upload-artifact@v4
         with:
