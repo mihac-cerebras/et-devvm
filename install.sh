@@ -21,6 +21,7 @@ PREBUILT_SRC=latest
 RUN_TESTS=1
 FORCE_RESTART=0
 SETUP_LOCALHOST_SSH=0
+HEALTHCHECK=0
 # Parallel compile jobs: ~2 GB per job (protobuf-heavy TUs), capped at nproc.
 # Too many and the VM's OOM daemon kills cc1plus.
 JOBS="${ET_JOBS:-$(awk -v n="$(nproc 2>/dev/null || echo 4)" \
@@ -50,6 +51,8 @@ Usage: $0 [options]
   --skip-tests           Don't run et-test after a source build.
   --restart              Restart a running etserver even if this shell is itself
                          inside an ET session (that session WILL drop).
+  --healthcheck          Enable the wedge watchdog (et-healthcheck.timer). Off by
+                         default; re-running without this flag turns it off again.
   --setup-localhost-ssh  Append your own public key to ~/.ssh/authorized_keys so
                          the watchdog's loopback probe (ssh localhost) works.
   -h, --help             Show this help.
@@ -69,6 +72,7 @@ while [ $# -gt 0 ]; do
         --port) ET_PORT="$2"; shift ;;
         --skip-tests) RUN_TESTS=0 ;;
         --restart) FORCE_RESTART=1 ;;
+        --healthcheck) HEALTHCHECK=1 ;;
         --setup-localhost-ssh) SETUP_LOCALHOST_SSH=1 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -155,8 +159,12 @@ preflight() {
         LOCALHOST_SSH=1
     else
         LOCALHOST_SSH=0
-        warn "passwordless 'ssh localhost' does not work, so the wedge watchdog can't probe ET
+        if [ "$HEALTHCHECK" = 1 ]; then
+            warn "passwordless 'ssh localhost' does not work, so the wedge watchdog can't probe ET
        (it will just log failures and never restart anything). Fix: re-run with --setup-localhost-ssh"
+        else
+            info "passwordless 'ssh localhost' not available; skipping the loopback check"
+        fi
     fi
 }
 
@@ -329,7 +337,7 @@ install_units() {
 
 start_services() {
     step "Starting services"
-    systemctl --user enable -q etserver.service et-healthcheck.timer etlog-cleanup.timer
+    systemctl --user enable -q etserver.service etlog-cleanup.timer
     if ! systemctl --user is-active -q etserver.service; then
         systemctl --user start etserver.service
         info "etserver started"
@@ -348,7 +356,14 @@ start_services() {
     else
         info "etserver already running and up to date"
     fi
-    systemctl --user start et-healthcheck.timer etlog-cleanup.timer
+    systemctl --user start etlog-cleanup.timer
+    if [ "$HEALTHCHECK" = 1 ]; then
+        systemctl --user enable -q --now et-healthcheck.timer
+        info "wedge watchdog (et-healthcheck.timer) enabled"
+    else
+        systemctl --user disable -q --now et-healthcheck.timer 2>/dev/null || true
+        info "wedge watchdog disabled (pass --healthcheck to enable)"
+    fi
 }
 
 verify() {
@@ -362,7 +377,7 @@ verify() {
 $(systemctl --user status etserver.service --no-pager 2>&1 | tail -15)"
     ss -Hltn "sport = :$ET_PORT" | grep -q . || die "nothing is listening on port $ET_PORT"
     info "etserver.service active, listening on :$ET_PORT, fifo $FIFO"
-    systemctl --user is-active -q et-healthcheck.timer && info "et-healthcheck.timer active"
+    if systemctl --user is-active -q et-healthcheck.timer; then info "et-healthcheck.timer active"; fi
 
     if [ "${RESTART_PENDING:-0}" = 1 ]; then
         info "(skipping loopback probe: old etserver still running until you restart it)"
@@ -371,7 +386,7 @@ $(systemctl --user status etserver.service --no-pager 2>&1 | tail -15)"
         local logdir rc=0
         logdir="$(mktemp -d)"
         timeout --signal=KILL 30 script -qec \
-            "'$BIN_DIR/et' --silent --logdir='$logdir' --serverfifo='$FIFO' '$USER@localhost:$ET_PORT' -c true" \
+            "'$BIN_DIR/et' --silent --logdir='$logdir' --serverfifo='$FIFO' --command true '$USER@localhost:$ET_PORT'" \
             /dev/null >/dev/null 2>&1 || rc=$?
         rm -rf "$logdir"
         if [ "$rc" = 0 ]; then
@@ -394,11 +409,13 @@ print_client() {
        password prompt (ET bootstraps over ssh, then switches to port $ET_PORT).
     3. Add to ~/.zshrc (or ~/.bashrc) on the laptop:
 
-         et-vm() { et -k 5 --serverfifo=$FIFO $USER@$host:$ET_PORT "\$@"; }
+         et-vm() { et -k 5 --serverfifo=$FIFO "\$@" $USER@$host:$ET_PORT; }
 
        --serverfifo is required: this etserver runs as you, not root, so its
        socket isn't at ET's default /var/run/etserver.idpasskey.fifo.
-    4. Connect:  et-vm        (or: et-vm -c 'tmux new -A -s main')
+       Extra options go before the host ("\$@" comes first), which works with
+       both old and new ET clients.
+    4. Connect:  et-vm        (or: et-vm --command 'tmux new -A -s main' --noexit)
 EOF
 }
 

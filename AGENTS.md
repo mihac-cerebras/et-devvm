@@ -25,8 +25,10 @@ git clone https://github.com/mihac-cerebras/et-devvm ~/src/et-devvm 2>/dev/null 
 cd ~/src/et-devvm && ./install.sh
 ```
 
-- If `ssh localhost` fails, the installer warns about it. Ask the user before re-running with
-  `--setup-localhost-ssh`, because it edits `~/.ssh/authorized_keys`.
+- The wedge watchdog (`et-healthcheck.timer`) is **off by default**. Only add
+  `--healthcheck` if the user asks for it. It needs passwordless `ssh localhost`.
+  If that's missing, ask before using `--setup-localhost-ssh`, because it edits
+  `~/.ssh/authorized_keys`.
 - If the prebuilt binaries can't run (missing libs), fall back to `./install.sh --from-source`
   (source build, 30-45 min). Run it in the background or under
   `systemd-run --user --unit=et-build ...` so a dropped connection doesn't kill it.
@@ -51,7 +53,7 @@ cd ~/src/et-devvm && ./install.sh
 `et` needs a TTY. From a non-interactive tool, wrap it:
 
 ```bash
-script -q /dev/null et --serverfifo=<fifo> <user>@<vm-fqdn>:2022 -c 'echo ET_OK; exit'   # macOS script syntax
+script -q /dev/null et --serverfifo=<fifo> --command 'echo ET_OK' <user>@<vm-fqdn>:2022   # macOS script syntax
 ```
 
 Expect `ET_OK`. Exit 134 with `TerminalClient.cpp ... No such file or directory`
@@ -65,5 +67,5 @@ means no TTY, not a server problem. Failures to look into:
 ## 4. Report
 
 Tell the user the installed version (`~/.local/bin/etserver --version`), port,
-whether linger and loopback ssh are OK (watchdog functional), and the exact
+whether linger and loopback ssh are OK, and the exact
 `et-vm` line you added and where you added it.

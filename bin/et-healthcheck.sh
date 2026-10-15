@@ -56,7 +56,7 @@ log() { echo "$(date -Is) $*"; }
 run_probe() {
     timeout --signal=KILL "${PROBE_TIMEOUT}" \
         "${ETBIN}" --silent --logdir="${PROBE_LOGDIR}" \
-        --serverfifo="${FIFO}" "${me}@localhost:${PORT}" -c true \
+        --serverfifo="${FIFO}" --command true "${me}@localhost:${PORT}" \
         >/dev/null 2>&1
 }
 

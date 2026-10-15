@@ -159,7 +159,7 @@ jobs:
             cat et-el9-x86_64/NEEDED
             echo '```'
             echo
-            echo 'Install on a dev VM: `./install.sh --prebuilt` (see README).'
+            echo 'Install on a dev VM: `./install.sh` (see README).'
           } > notes.md
           gh release create -R "$GITHUB_REPOSITORY" "$tag" \
             et-el9-x86_64.tar.gz et-el9-x86_64.tar.gz.sha256 \

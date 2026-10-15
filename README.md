@@ -13,7 +13,7 @@ ET is like ssh, but sessions survive laptop sleep, Wi-Fi changes and VPN drops.
 |---|---|
 | `~/.local/bin/{et,etserver,etterminal}` | ET binaries (upstream, EL9 x86_64) |
 | `etserver.service` (systemd `--user`) | runs `etserver` on port 2022, restarts on crash, cleans up stale sockets/ports first |
-| `et-healthcheck.timer` + `~/.local/bin/et-healthcheck.sh` | every minute, opens a loopback ET session. If etserver is **alive but wedged** (it accepts TCP but never finishes a handshake, so systemd never notices), it restarts it. It only does that when the probe hangs, so a transient blip can't kill your live session |
+| `et-healthcheck.timer` + `~/.local/bin/et-healthcheck.sh` | **opt-in (`--healthcheck`), off by default.** Every minute, opens a loopback ET session. If etserver is **alive but wedged** (it accepts TCP but never finishes a handshake, so systemd never notices), it restarts it. It only does that when the probe hangs, so a transient blip can't kill your live session |
 | `etlog-cleanup.timer` | daily pruning of `~/.local/et/log` |
 | `~/.config/et-devvm/env` | `ET_PORT=…` |
 
@@ -30,14 +30,14 @@ cd ~/src/et-devvm
 ```
 
 The script is idempotent. Re-run it to upgrade. Useful flags: `--port N`, `--ref <upstream ref>`,
-`--setup-localhost-ssh`, `--restart`. See `./install.sh --help`.
+`--healthcheck`, `--setup-localhost-ssh`, `--restart`. See `./install.sh --help`.
 
 At the end it prints the client setup. On your **laptop**:
 
 ```bash
 brew install MisterTea/et/et                     # or nixpkgs: eternal-terminal
 # ~/.zshrc  (use your VM user, host and home):
-et-vm() { et -k 5 --serverfifo=/cb/home/$USER/.local/et/etserver.fifo $USER@<you>-vm.cerebras.aws:2022 "$@"; }
+et-vm() { et -k 5 --serverfifo=/cb/home/$USER/.local/et/etserver.fifo "$@" $USER@<you>-vm.cerebras.aws:2022; }
 ```
 
 `--serverfifo` is mandatory. The server runs as you, not root, so its socket is not
@@ -49,7 +49,7 @@ prompt, because ET bootstraps over ssh and then switches to port 2022.
 - **Linger.** `loginctl show-user $USER -p Linger` must be `yes`, or etserver
   stops when you log out. The installer tries `loginctl enable-linger`. If that's
   refused, ask an admin.
-- **Loopback ssh.** The watchdog's probe runs `et $USER@localhost`, which needs
+- **Loopback ssh** (only for `--healthcheck`). The watchdog's probe runs `et $USER@localhost`, which needs
   passwordless `ssh localhost`. `--setup-localhost-ssh` adds your own key to
   `~/.ssh/authorized_keys`.
 - **Prebuilt binaries** need only base EL9 libs plus `libunwind` (EPEL). The
@@ -64,8 +64,8 @@ prompt, because ET bootstraps over ssh and then switches to port 2022.
   restart and tells you to run `systemctl --user restart etserver.service`.
   `tmux` survives the restart. Just reconnect and `tmux attach`.
 - **"The Eternal Terminal daemon is not running"** from the client usually means
-  the daemon is running but wedged. The watchdog fixes it within ~3-4 min.
-  To fix it right away, run `systemctl --user restart etserver.service`.
+  the daemon is running but wedged. With `--healthcheck` the watchdog fixes it
+  within ~3-4 min. To fix it right away, run `systemctl --user restart etserver.service`.
 - **Testing `et` from a script or agent.** `et` needs a TTY. Without one it dies
   with exit 134 (`TerminalClient.cpp ... No such file or directory`) even when the
   server is healthy. Wrap it in `script -qec "<et command>" /dev/null`.
