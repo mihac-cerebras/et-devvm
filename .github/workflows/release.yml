@@ -66,7 +66,7 @@ jobs:
           dnf config-manager --set-enabled crb
           # Deliberately NOT libutempter-devel: the binaries must only need
           # libraries every dev VM already has.
-          dnf -y install git gcc gcc-c++ make cmake perl perl-IPC-Cmd perl-FindBin \
+          dnf -y install --allowerasing git gcc gcc-c++ make cmake perl perl-IPC-Cmd perl-FindBin \
             autoconf autoconf-archive automake libtool pkgconf-pkg-config \
             zip unzip tar curl patch kernel-headers libunwind-devel libselinux-devel \
             binutils which
