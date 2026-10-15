@@ -58,13 +58,12 @@ Exit `1` is a fast, transient failure and is ignored on purpose.
 
 ## Releases (GitHub Actions)
 
-`.github/workflows/release.yml` runs on the 1st of each month and on demand
-(**Actions → Build ET release → Run workflow**, optional `ref`/`force`). It:
+`.github/workflows/release.yml` runs on the 1st of each month and on demand.
 
+It:
 1. resolves upstream `MisterTea/EternalTerminal@master` and exits if a release
    for that commit already exists;
-2. builds it in a `rockylinux:9` container with `ci/build.sh` (Sentry disabled,
-   no libutempter, so the binaries need only libs every VM has), and runs `et-test`;
+2. builds it in a `rockylinux:9` container with `ci/build.sh`, and runs `et-test`;
 3. publishes `et-el9-x86_64.tar.gz` + `.sha256` as release `et-<version>-<sha>`,
    marked latest, which is what `install.sh` downloads by default.
 
