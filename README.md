@@ -44,32 +44,6 @@ et-vm() { et -k 5 --serverfifo=/cb/home/$USER/.local/et/etserver.fifo "$@" $USER
 at ET's default path. Plain `ssh <user>@<vm>` must also work without a password
 prompt, because ET bootstraps over ssh and then switches to port 2022.
 
-## Requirements / gotchas
-
-- **Linger.** `loginctl show-user $USER -p Linger` must be `yes`, or etserver
-  stops when you log out. The installer tries `loginctl enable-linger`. If that's
-  refused, ask an admin.
-- **Loopback ssh** (only for `--healthcheck`). The watchdog's probe runs `et $USER@localhost`, which needs
-  passwordless `ssh localhost`. `--setup-localhost-ssh` adds your own key to
-  `~/.ssh/authorized_keys`.
-- **Prebuilt binaries** need only base EL9 libs plus `libunwind` (EPEL). The
-  installer checks `ldd` and tells you if something's missing.
-- **Source builds** need gcc/g++, cmake, make, perl (`IPC::Cmd`, `FindBin`),
-  autoconf, automake, libtool, `libunwind-devel`, zip/unzip. `autoconf-archive` is
-  usually missing, so the installer unpacks it from the distro RPM without sudo.
-  The compile is capped at ~2 GB RAM per job (`ET_JOBS=` overrides), because the
-  VM's OOM daemon kills `cc1plus` otherwise.
-- **Upgrading from inside ET.** Restarting etserver drops every ET session,
-  including the one you're typing in. If the installer detects that, it skips the
-  restart and tells you to run `systemctl --user restart etserver.service`.
-  `tmux` survives the restart. Just reconnect and `tmux attach`.
-- **"The Eternal Terminal daemon is not running"** from the client usually means
-  the daemon is running but wedged. With `--healthcheck` the watchdog fixes it
-  within ~3-4 min. To fix it right away, run `systemctl --user restart etserver.service`.
-- **Testing `et` from a script or agent.** `et` needs a TTY. Without one it dies
-  with exit 134 (`TerminalClient.cpp ... No such file or directory`) even when the
-  server is healthy. Wrap it in `script -qec "<et command>" /dev/null`.
-
 ## Diagnose
 
 ```bash
