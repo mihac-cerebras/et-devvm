@@ -321,10 +321,21 @@ install_units() {
             cp "$UNIT_DIR/$u" "$UNIT_DIR/$u.bak-$ts"
             info "backed up your existing $u to $u.bak-$ts"
         fi
-        if ! cmp -s "$REPO_DIR/systemd/$u" "$UNIT_DIR/$u"; then
-            cp "$REPO_DIR/systemd/$u" "$UNIT_DIR/$u"
+        # Pin etserver to this host. $HOME (and so ~/.config/systemd/user and the
+        # fifo under ~/.local/et) is often a network mount shared by many hosts;
+        # without ConditionHost every host's systemd would start etserver and
+        # 'rm' the one fifo the real server uses, giving "daemon is not running".
+        rendered="$(mktemp)"
+        if [ "$u" = etserver.service ]; then
+            sed "/^Description=/a ConditionHost=$(hostname)" "$REPO_DIR/systemd/$u" > "$rendered"
+        else
+            cp "$REPO_DIR/systemd/$u" "$rendered"
+        fi
+        if ! cmp -s "$rendered" "$UNIT_DIR/$u"; then
+            cp "$rendered" "$UNIT_DIR/$u"
             [ "$u" = etserver.service ] && CHANGED=1
         fi
+        rm -f "$rendered"
     done
     if [ -f "$BIN_DIR/et-healthcheck.sh" ] && ! cmp -s "$REPO_DIR/bin/et-healthcheck.sh" "$BIN_DIR/et-healthcheck.sh" \
         && ! grep -q "et-devvm" "$BIN_DIR/et-healthcheck.sh"; then

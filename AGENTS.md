@@ -62,7 +62,10 @@ means no TTY, not a server problem. Failures to look into:
   (VPN/firewall). Check `nc -vz <vm> 2022`.
 - `The Eternal Terminal daemon is not running`: wrong `--serverfifo`, or the
   server is wedged. Run `ssh <vm> systemctl --user restart etserver.service`
-  and retry.
+  and retry. If it keeps coming back and `$HOME` is a shared network mount,
+  look for many tiny `etserver-*.log` files in `~/.local/et/log`: other hosts
+  are starting the shared unit and deleting the fifo. The installer pins the
+  unit with `ConditionHost=`; re-run it on units installed before that.
 
 ## 4. Report
 
